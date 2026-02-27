@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Users & Auth ───────────────────────────────────────────
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  email          String   @unique
+  name           String?
+  passwordHash   String   @map("password_hash")
+  role           Role     @default(OWNER)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  assets         Asset[]
+  postLogs       PostLog[]
+
+  @@map("users")
+}
+
+enum Role {
+  OWNER
+  COLLABORATOR
+}
+
+// ─── Assets (Image Library) ─────────────────────────────────
+
+model Asset {
+  id               String      @id @default(uuid()) @db.Uuid
+  type             AssetType   @default(IMAGE)
+  storageKey       String      @map("storage_key")
+  originalFilename String      @map("original_filename")
+  title            String
+  altText          String?     @map("alt_text")
+  mimeType         String      @map("mime_type")
+  sizeBytes        Int         @map("size_bytes")
+  width            Int?
+  height           Int?
+  sha256           String      @unique
+  status           AssetStatus @default(ACTIVE)
+  createdById      String      @map("created_by") @db.Uuid
+  createdAt        DateTime    @default(now()) @map("created_at")
+  lastUsedAt       DateTime?   @map("last_used_at")
+  usageCount       Int         @default(0) @map("usage_count")
+
+  createdBy        User        @relation(fields: [createdById], references: [id])
+  tags             AssetTag[]
+  collectionItems  AssetCollectionItem[]
+  postAssets       PostAsset[]
+
+  @@index([title])
+  @@index([lastUsedAt])
+  @@index([status])
+  @@map("assets")
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+}
+
+enum AssetStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// ─── Tags ───────────────────────────────────────────────────
+
+model Tag {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique
+  label     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  assets    AssetTag[]
+
+  @@map("tags")
+}
+
+model AssetTag {
+  assetId String @map("asset_id") @db.Uuid
+  tagId   String @map("tag_id") @db.Uuid
+
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([assetId, tagId])
+  @@index([tagId, assetId])
+  @@map("asset_tags")
+}
+
+// ─── Collections ────────────────────────────────────────────
+
+model AssetCollection {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  items       AssetCollectionItem[]
+
+  @@map("asset_collections")
+}
+
+model AssetCollectionItem {
+  collectionId String @map("collection_id") @db.Uuid
+  assetId      String @map("asset_id") @db.Uuid
+  position     Int    @default(0)
+
+  collection   AssetCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  asset        Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, assetId])
+  @@map("asset_collection_items")
+}
+
+// ─── Post Logs ──────────────────────────────────────────────
+
+model PostLog {
+  id            String     @id @default(uuid()) @db.Uuid
+  scheduledFor  DateTime?  @map("scheduled_for")
+  postedAt      DateTime?  @map("posted_at")
+  text          String
+  xTweetId      String?    @map("x_tweet_id")
+  status        PostStatus @default(DRAFTED)
+  failureReason String?    @map("failure_reason")
+  slot          String?
+  createdById   String     @map("created_by") @db.Uuid
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  createdBy     User       @relation(fields: [createdById], references: [id])
+  postAssets    PostAsset[]
+
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("post_logs")
+}
+
+enum PostStatus {
+  DRAFTED
+  APPROVED
+  POSTED
+  FAILED
+  BLOCKED
+}
+
+model PostAsset {
+  postId  String @map("post_id") @db.Uuid
+  assetId String @map("asset_id") @db.Uuid
+
+  post    PostLog @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset   Asset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, assetId])
+  @@map("post_assets")
+}
+
+// ─── Policy Rules ───────────────────────────────────────────
+
+model PolicyRule {
+  id        String   @id @default(uuid()) @db.Uuid
+  config    Json
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("policy_rules")
+}
+
+// ─── App Settings ───────────────────────────────────────────
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
