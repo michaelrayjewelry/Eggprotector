@@ -40,7 +40,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      router.push("/assets");
     } catch {
       setError("Network error");
       setLoading(false);
